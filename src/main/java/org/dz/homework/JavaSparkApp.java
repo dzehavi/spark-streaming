@@ -22,8 +22,10 @@ import org.apache.spark.streaming.kafka010.LocationStrategies;
 import java.util.*;
 
 public class JavaSparkApp {
+
     public static void main(String[] args) throws InterruptedException {
 
+        // cut the clutter in the log
         Logger.getLogger("org").setLevel(Level.ERROR);
         Logger.getLogger("akka").setLevel(Level.ERROR);
 
@@ -32,7 +34,7 @@ public class JavaSparkApp {
         sparkConf.setMaster("local");
         sparkConf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer");
         sparkConf.setAppName("JavaSparkApp");
-        JavaStreamingContext streamingContext = new JavaStreamingContext(sparkConf, Durations.seconds(10));
+        JavaStreamingContext streamingContext = new JavaStreamingContext(sparkConf, Durations.seconds(1));
 
         // Subscribe to incoming topic.
         Map<String, Object> kafkaParams = new HashMap<>();
@@ -53,6 +55,7 @@ public class JavaSparkApp {
         JavaDStream<InputMessage> data = inputMessages
                 .map(v -> {
                         InputMessage inputMessage = v.value();
+                        // process the input message
                         process(inputMessage);
                         return v.value();
                     });
@@ -69,7 +72,17 @@ public class JavaSparkApp {
      * @param inputMessage the message to process
      */
     private static void process(InputMessage inputMessage) {
-        String transaction = inputMessage.getHeaders().get("operation");
+        Map<String, String> headers = inputMessage.getHeaders();
+        Map<String, Object> data = inputMessage.getData();
+        if (data == null || headers == null) {
+            LogManager.getLogger(JavaSparkApp.class).warn("Null transaction!");
+            return;
+        }
+        String transaction = headers.get("operation");
+        if (Strings.isNullOrEmpty(transaction)) {
+            LogManager.getLogger(JavaSparkApp.class).warn("Null transaction!");
+            return;
+        }
 
         Properties props = new Properties();
         props.put("bootstrap.servers", "localhost:9092");
